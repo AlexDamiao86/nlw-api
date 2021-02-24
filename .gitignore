@@ -1,0 +1,7 @@
+node_modules
+*.lock
+*.editorconfig
+*.eslintrc.json
+*.log
+*.sqlite
+*.vscode
