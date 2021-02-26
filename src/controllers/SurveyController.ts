@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { getCustomRepository } from 'typeorm';
+import { AppError } from '../errors/AppError';
 import SurveysRepository from '../repositories/SurveysRepository';
 
 class SurveyController {
@@ -12,11 +13,7 @@ class SurveyController {
       title
     });
 
-    if (titleAlreadyExists) {
-      return response.status(400).json({
-        error: "Title already exists!"
-      });
-    }
+    if (titleAlreadyExists) throw new AppError("Title already exists!");
 
     const survey = surveysRepository.create({
       title, description

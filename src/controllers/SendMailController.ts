@@ -5,7 +5,7 @@ import UsersRepository from "../repositories/UsersRepository";
 import { Request, Response } from 'express';
 import SendMailService from "../services/SendMailService";
 import { resolve } from 'path';
-
+import { AppError } from "../errors/AppError";
 
 class SendMailController {
   async execute(request: Request, response: Response) {
@@ -17,24 +17,18 @@ class SendMailController {
 
     const user = await usersRepository.findOne({ email });
 
-    if(!user) {
-      return response.status(400).json({
-        error: "User does not exist",
-      });
-    }
+    if(!user) throw new AppError("User does not exist");
 
-    const survey = await surveysRepository.findOne({ id: survey_id })
-    if(!survey) {
-      return response.status(400).json({
-        error: "Survey does not exist"
-      })
-    }
+    const survey = await surveysRepository.findOne({ id: survey_id });
+
+    if(!survey) throw new AppError("Survey does not exist");
 
     const surveyUserAlreadyExists = await surveysUsersRepository.findOne({
-      where: [
-        { user_id: user.id },
-        { value: null}
-      ],
+      where: [{
+        user_id: user.id,
+        survey_id,
+        value: null
+      }],
       relations: ["user", "survey"]
     });
 
@@ -44,24 +38,26 @@ class SendMailController {
       name: user.name,
       title: survey.title,
       description: survey.description,
-      user_id: user.id,
+      surveyUser_id: null,
       link: process.env.URL_MAIL
     }
 
+    //Caso já exista, envia a pesquisa existente
     if (surveyUserAlreadyExists) {
+      variables.surveyUser_id = surveyUserAlreadyExists.id;
       await SendMailService.execute(email, survey.title, variables, npsPath);
       return response.json(surveyUserAlreadyExists)
-    } else {
-      //Cria uma resposta para aquela pesquisa
-      const surveyUser = surveysUsersRepository.create({
-        user_id: user.id,
-        survey_id
-      })
-      await surveysUsersRepository.save(surveyUser);
-      //Enviar o e-mail para o usuário
-      await SendMailService.execute(email, survey.title, variables, npsPath);
-      return response.json(surveyUser);
     }
+    //Cria uma pesquisa
+    const surveyUserCreated = surveysUsersRepository.create({
+      user_id: user.id,
+      survey_id
+    })
+    await surveysUsersRepository.save(surveyUserCreated);
+    //Enviar o e-mail para o usuário
+    variables.surveyUser_id = surveyUserCreated.id;
+    await SendMailService.execute(email, survey.title, variables, npsPath);
+    return response.json(surveyUserCreated);
   }
 }
 
